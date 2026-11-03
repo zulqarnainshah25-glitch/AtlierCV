@@ -1102,13 +1102,32 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (!isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa'
+    let viteMiddleware: express.RequestHandler | null = null;
+    const viteInitPromise = import('vite')
+      .then(({ createServer: createViteServer }) =>
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: 'spa'
+        })
+      )
+      .then((vite) => {
+        viteMiddleware = vite.middlewares;
+        console.log('Mounted Vite dev server middleware');
+      })
+      .catch((err) => {
+        console.error('Failed to initialize Vite dev server middleware:', err);
+      });
+
+    app.use(async (req, res, next) => {
+      if (!viteMiddleware) {
+        await viteInitPromise;
+      }
+      if (viteMiddleware) {
+        viteMiddleware(req, res, next);
+      } else {
+        next();
+      }
     });
-    app.use(vite.middlewares);
-    console.log('Mounted Vite dev server middleware');
   } else if (hasDist) {
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
@@ -1122,6 +1141,7 @@ async function startServer() {
     });
   }
 
+  // Bind TCP socket immediately so container startup probes on port 3000 succeed without waiting for Vite bundle warmup
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`AtelierCV server running on http://0.0.0.0:${PORT} [mode: ${isProduction ? 'production' : 'development'}]`);
   });

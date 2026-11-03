@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   updateProfile
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
-import { Mail, Lock, User, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  User,
+  ArrowRight,
+  AlertCircle,
+  Loader2,
+  Copy,
+  Check,
+  ExternalLink
+} from 'lucide-react';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { parseFirebaseAuthError, ParsedAuthError } from '../lib/authErrorHandler';
 
 interface AuthScreenProps {
   onQuickDemoAccess: (customUser?: { email?: string; displayName?: string; isSignup?: boolean }) => void;
@@ -20,12 +33,36 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showProviderGuide, setShowProviderGuide] = useState(false);
+  const [parsedError, setParsedError] = useState<ParsedAuthError | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
+  const currentHostname =
+    typeof window !== 'undefined' ? window.location.hostname : 'atlier-cv.vercel.app';
+
+  useEffect(() => {
+    getRedirectResult(auth).catch((err: unknown) => {
+      if (err) {
+        const analyzed = parseFirebaseAuthError(err, currentHostname, firebaseConfig.projectId);
+        setParsedError(analyzed);
+        setErrorMsg(analyzed.userMessage);
+      }
+    });
+  }, [currentHostname]);
+
+  const handleCopyDomain = async (domain: string) => {
+    try {
+      await navigator.clipboard.writeText(domain);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
+    } catch {
+      setCopiedDomain(false);
+    }
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    setShowProviderGuide(false);
+    setParsedError(null);
     setLoading(true);
 
     try {
@@ -38,30 +75,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code || '';
-      const message = err instanceof Error ? err.message : String(err);
-
-      if (
-        message.includes('token-service-api-has-not-been-used') ||
-        message.includes('securetoken.googleapis.com') ||
-        code === 'auth/operation-not-allowed' ||
-        message.includes('operation-not-allowed')
-      ) {
+      const analyzed = parseFirebaseAuthError(err, currentHostname, firebaseConfig.projectId);
+      if (analyzed.shouldAutoFallbackToDemo) {
         onQuickDemoAccess({
           email: email.trim() || undefined,
           displayName: fullName.trim() || email.trim().split('@')[0] || undefined,
           isSignup: mode === 'signup'
         });
         return;
-      } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-        setErrorMsg('Email ya password ghalat hai. Dobara check karein.');
-      } else if (code === 'auth/email-already-in-use') {
-        setErrorMsg('Yeh email pehle se registered hai. Login tab use karein.');
-      } else if (code === 'auth/weak-password') {
-        setErrorMsg('Password kam az kam 6 characters ka hona chahiye.');
-      } else {
-        setErrorMsg(message);
       }
+      setParsedError(analyzed);
+      setErrorMsg(analyzed.userMessage);
     } finally {
       setLoading(false);
     }
@@ -69,19 +93,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
 
   const handleGoogleSignIn = async () => {
     setErrorMsg(null);
+    setParsedError(null);
     setLoading(true);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (
-        message.includes('token-service-api-has-not-been-used') ||
-        message.includes('securetoken.googleapis.com')
-      ) {
+      const analyzed = parseFirebaseAuthError(err, currentHostname, firebaseConfig.projectId);
+      if (analyzed.shouldAutoFallbackToDemo) {
         onQuickDemoAccess();
         return;
       }
-      setErrorMsg(message);
+      if (analyzed.isPopupBlocked) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch {
+          // If redirect also fails, show the analyzed error below
+        }
+      }
+      setParsedError(analyzed);
+      setErrorMsg(analyzed.userMessage);
     } finally {
       setLoading(false);
     }
@@ -119,6 +150,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
               onClick={() => {
                 setMode('login');
                 setErrorMsg(null);
+                setParsedError(null);
               }}
               className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 mode === 'login'
@@ -133,6 +165,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
               onClick={() => {
                 setMode('signup');
                 setErrorMsg(null);
+                setParsedError(null);
               }}
               className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 mode === 'signup'
@@ -158,7 +191,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Areeba Khan"
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 text-slate-900"
                   />
                 </div>
               </div>
@@ -176,7 +209,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 text-slate-900"
                 />
               </div>
             </div>
@@ -194,7 +227,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 text-slate-900"
                 />
               </div>
             </div>
@@ -202,19 +235,68 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => 
             {errorMsg && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
-                <div className="space-y-1">
-                  <p className="font-medium">{errorMsg}</p>
-                  {showProviderGuide && (
-                    <div className="text-[11px] text-slate-700 bg-white border border-slate-200 rounded p-2 mt-1.5 space-y-1">
-                      <p className="font-semibold">How to enable Email/Password in Firebase Console:</p>
-                      <ol className="list-decimal list-inside space-y-0.5">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <p className="font-medium break-words">{errorMsg}</p>
+
+                  {parsedError?.isUnauthorizedDomain && (
+                    <div className="text-[11px] text-slate-700 bg-white border border-slate-200 rounded-lg p-2.5 space-y-2">
+                      <p className="font-semibold text-slate-900">
+                        Vercel / Custom Domain par Google Login on karne ka tareeqa (30 sec fix):
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1 text-slate-600">
                         <li>
-                          Open Firebase Console for project{' '}
-                          <span className="font-mono font-semibold">{firebaseConfig.projectId}</span>
+                          Firebase Console kholein (Project:{' '}
+                          <span className="font-mono font-semibold text-slate-900">
+                            {firebaseConfig.projectId}
+                          </span>
+                          )
                         </li>
-                        <li>Go to Authentication → Sign-in method</li>
-                        <li>Click Email/Password → Enable → Save</li>
+                        <li>
+                          <span className="font-semibold text-slate-800">
+                            Authentication → Settings → Authorized domains
+                          </span>{' '}
+                          mein jayein
+                        </li>
+                        <li>
+                          <span className="font-semibold text-slate-800">Add domain</span> par click
+                          karein aur yeh domain paste karein:
+                        </li>
                       </ol>
+
+                      <div className="flex items-center justify-between gap-2 bg-slate-100 border border-slate-200 rounded px-2.5 py-1.5">
+                        <code className="font-mono text-xs font-bold text-slate-900 truncate">
+                          {parsedError.unauthorizedHostname}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDomain(parsedError.unauthorizedHostname)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold bg-white border border-slate-300 rounded text-slate-800 hover:bg-slate-50 shrink-0"
+                        >
+                          {copiedDomain ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Copy Domain</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <a
+                          href={parsedError.firebaseConsoleAuthSettingsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline"
+                        >
+                          <span>Open Firebase Authorized Domains</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>
