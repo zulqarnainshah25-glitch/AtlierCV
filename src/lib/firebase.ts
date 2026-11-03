@@ -8,10 +8,17 @@ import {
   doc,
   getDocFromServer
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import firebaseAppletConfig from '../../firebase-applet-config.json';
+import { resolveFirebaseConfig } from './firebaseConfigResolver';
 
 // Silence internal Firestore connection retry console.error spam in preview iframe
 setLogLevel('silent');
+
+// Resolve Firebase configuration from .env (VITE_FIREBASE_*) with fallback to firebase-applet-config.json
+export const firebaseConfig = resolveFirebaseConfig(
+  typeof import.meta !== 'undefined' ? (import.meta.env as Record<string, unknown>) : undefined,
+  firebaseAppletConfig
+);
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);

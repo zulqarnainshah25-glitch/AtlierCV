@@ -1099,46 +1099,27 @@ app.get(['/healthz', '/api/health'], (_req, res) => {
 async function startServer() {
   const distPath = path.join(__dirname, 'dist');
   const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
-
-  // Reliable production detection for Cloud Run containers:
-  // 1. Cloud Run automatically injects K_SERVICE / K_REVISION
-  // 2. Or NODE_ENV is explicitly 'production'
-  // 3. Or dist/index.html is compiled and NODE_ENV is not explicitly 'development'
-  const isCloudRun = Boolean(process.env.K_SERVICE || process.env.K_REVISION);
-  const isExplicitDev = process.env.NODE_ENV === 'development';
-  const isProduction = (process.env.NODE_ENV === 'production') || isCloudRun || (hasDist && !isExplicitDev);
+  const isProduction = process.env.NODE_ENV === 'production';
 
   if (!isProduction) {
-    try {
-      const { createServer: createViteServer } = await import('vite');
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa'
-      });
-      app.use(vite.middlewares);
-      console.log('Mounted Vite dev server middleware');
-    } catch (err) {
-      console.warn('Vite middleware initialization failed, falling back to static build:', err);
-      if (hasDist) {
-        app.use(express.static(distPath));
-        app.get('*', (_req, res) => {
-          res.sendFile(path.join(distPath, 'index.html'));
-        });
-      }
-    }
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa'
+    });
+    app.use(vite.middlewares);
+    console.log('Mounted Vite dev server middleware');
+  } else if (hasDist) {
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+    console.log(`Serving static production bundle from ${distPath}`);
   } else {
-    if (hasDist) {
-      app.use(express.static(distPath));
-      app.get('*', (_req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
-      console.log(`Serving static production bundle from ${distPath}`);
-    } else {
-      console.warn(`Warning: dist/index.html not found at ${distPath}`);
-      app.get('*', (_req, res) => {
-        res.status(200).send('<!DOCTYPE html><html><body><h1>AtelierCV Server Running</h1></body></html>');
-      });
-    }
+    console.warn(`Warning: dist/index.html not found at ${distPath}`);
+    app.get('*', (_req, res) => {
+      res.status(200).send('<!DOCTYPE html><html><body><h1>AtelierCV Server Running</h1></body></html>');
+    });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
