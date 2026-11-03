@@ -1,0 +1,6 @@
+{
+  "name": "AtelierCV — AI-Powered Professional CV Studio",
+  "description": "Professional AI-powered CV Builder with Groq Llama 3.3 70B content polishing, 6 ATS & executive templates, inline drag-and-drop editing, offline-first Firestore sync, and PDF/Word export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "classic-dark-sidebar",
+  "name": "Classic Dark Sidebar",
+  "category": "Professional",
+  "description": "A classic two-column layout featuring a dark grey left sidebar for personal info, skills, and languages with progress bars, and a clean right column for detailed experience and education.",
+  "isPremium": false,
+  "accentColor": "#374151",
+  "secondaryColor": "#111827",
+  "fontFamily": "Inter",
+  "layoutType": "two-column-right",
+  "photoSlot": {
+    "position": "sidebar-top",
+    "widthMm": 35,
+    "heightMm": 45,
+    "borderRadius": "0px",
+    "showBorder": false
+  },
+  "customCss": ".sidebar { background-color: #374151; color: #ffffff; } .sidebar h2 { background-color: #1F2937; padding: 4px 8px; border-radius: 4px; margin-top: 15px; margin-bottom: 10px; } .sidebar p { margin-bottom: 5px; font-size: 13px; } .progress-bar-container { background-color: #4B5563; height: 6px; border-radius: 3px; margin-top: 5px; } .progress-bar { background-color: #ffffff; height: 6px; border-radius: 3px; } .right-content h2 { border-bottom: 2px solid #D1D5DB; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold; }",
+  "thumbnailType": "classic-dark-sidebar"
+}

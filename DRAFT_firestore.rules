@@ -1,0 +1,389 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Reusable Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Zero-lookup admin check for list queries (Pillar 8 Cost-Optimization compliance)
+    function isBootstrappedAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        (
+          request.auth.token.email == 'zulqarnainshah25@gmail.com' ||
+          request.auth.token.email == 'ZulqarnainShah25@gmail.com' ||
+          request.auth.token.email == 'admin@ateliercv.com'
+        );
+    }
+
+    // Full admin check for single-document operations
+    function isAdmin() {
+      return isBootstrappedAdmin() ||
+        (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    // Validation Blueprint: UserProfile
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'uid',
+        'email',
+        'displayName',
+        'role',
+        'plan',
+        'pdfExportsUsed',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'email',
+        'displayName',
+        'role',
+        'plan',
+        'pdfExportsUsed',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+      data.role is string && (data.role == 'user' || data.role == 'admin') &&
+      data.plan is string && (data.plan == 'free' || data.plan == 'premium') &&
+      data.pdfExportsUsed is int && data.pdfExportsUsed >= 0 && data.pdfExportsUsed <= 100000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: CVDocument
+    function isValidCVDocument(data) {
+      return data.keys().hasAll([
+        'id',
+        'userId',
+        'title',
+        'templateId',
+        'fullName',
+        'jobTitle',
+        'email',
+        'phone',
+        'address',
+        'linkedinUrl',
+        'portfolioUrl',
+        'photoDataUrl',
+        'rawSummary',
+        'summary',
+        'experience',
+        'education',
+        'skills',
+        'skillGroups',
+        'projects',
+        'languages',
+        'certifications',
+        'isPolished',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'userId',
+        'title',
+        'templateId',
+        'fullName',
+        'jobTitle',
+        'email',
+        'phone',
+        'address',
+        'linkedinUrl',
+        'portfolioUrl',
+        'photoDataUrl',
+        'rawSummary',
+        'summary',
+        'experience',
+        'education',
+        'skills',
+        'skillGroups',
+        'projects',
+        'languages',
+        'certifications',
+        'isPolished',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 150 &&
+      data.templateId is string && data.templateId.size() >= 1 && data.templateId.size() <= 64 && data.templateId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+      data.jobTitle is string && data.jobTitle.size() <= 120 &&
+      data.email is string && data.email.size() <= 254 &&
+      data.phone is string && data.phone.size() <= 40 &&
+      data.address is string && data.address.size() <= 250 &&
+      data.linkedinUrl is string && data.linkedinUrl.size() <= 300 &&
+      data.portfolioUrl is string && data.portfolioUrl.size() <= 300 &&
+      data.photoDataUrl is string && data.photoDataUrl.size() <= 750000 &&
+      data.rawSummary is string && data.rawSummary.size() <= 4000 &&
+      data.summary is string && data.summary.size() <= 4000 &&
+      data.experience is list && data.experience.size() <= 25 && (data.experience.size() == 0 || data.experience[0] is map) &&
+      data.education is list && data.education.size() <= 20 && (data.education.size() == 0 || data.education[0] is map) &&
+      data.skills is list && data.skills.size() <= 60 && (data.skills.size() == 0 || data.skills[0] is string) &&
+      data.skillGroups is list && data.skillGroups.size() <= 15 && (data.skillGroups.size() == 0 || data.skillGroups[0] is map) &&
+      data.projects is list && data.projects.size() <= 20 && (data.projects.size() == 0 || data.projects[0] is map) &&
+      data.languages is list && data.languages.size() <= 20 && (data.languages.size() == 0 || data.languages[0] is string) &&
+      data.certifications is list && data.certifications.size() <= 20 && (data.certifications.size() == 0 || data.certifications[0] is string) &&
+      data.isPolished is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: CVTemplate
+    function isValidCVTemplate(data) {
+      return data.keys().hasAll([
+        'id',
+        'name',
+        'category',
+        'description',
+        'isPremium',
+        'accentColor',
+        'secondaryColor',
+        'fontFamily',
+        'layoutType',
+        'photoSlot',
+        'customCss',
+        'thumbnailType',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'name',
+        'category',
+        'description',
+        'isPremium',
+        'accentColor',
+        'secondaryColor',
+        'fontFamily',
+        'layoutType',
+        'photoSlot',
+        'customCss',
+        'thumbnailType',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+      data.category is string && (
+        data.category == 'Modern' ||
+        data.category == 'Classic' ||
+        data.category == 'Minimal' ||
+        data.category == 'Creative' ||
+        data.category == 'Executive' ||
+        data.category == 'ATS-friendly'
+      ) &&
+      data.description is string && data.description.size() >= 1 && data.description.size() <= 300 &&
+      data.isPremium is bool &&
+      data.accentColor is string && data.accentColor.size() >= 3 && data.accentColor.size() <= 32 &&
+      data.secondaryColor is string && data.secondaryColor.size() >= 3 && data.secondaryColor.size() <= 32 &&
+      data.fontFamily is string && data.fontFamily.size() >= 1 && data.fontFamily.size() <= 80 &&
+      data.layoutType is string && (
+        data.layoutType == 'two-column-left' ||
+        data.layoutType == 'two-column-right' ||
+        data.layoutType == 'single-column-classic' ||
+        data.layoutType == 'minimal-editorial' ||
+        data.layoutType == 'creative-split' ||
+        data.layoutType == 'ats-clean'
+      ) &&
+      data.photoSlot is map &&
+      data.photoSlot.keys().hasAll(['position', 'widthMm', 'heightMm', 'borderRadius', 'showBorder']) &&
+      data.photoSlot.keys().hasOnly(['position', 'widthMm', 'heightMm', 'borderRadius', 'showBorder']) &&
+      data.photoSlot.position is string && data.photoSlot.position.size() <= 32 &&
+      data.photoSlot.widthMm is int && data.photoSlot.widthMm >= 20 && data.photoSlot.widthMm <= 60 &&
+      data.photoSlot.heightMm is int && data.photoSlot.heightMm >= 25 && data.photoSlot.heightMm <= 80 &&
+      data.photoSlot.borderRadius is string && data.photoSlot.borderRadius.size() <= 24 &&
+      data.photoSlot.showBorder is bool &&
+      data.customCss is string && data.customCss.size() <= 5000 &&
+      data.thumbnailType is string && data.thumbnailType.size() >= 1 && data.thumbnailType.size() <= 64 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: AdminRecord
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+      data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+      data.createdAt is timestamp;
+    }
+
+    // Collection: /users/{userId}
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && existing().uid is string && isBootstrappedAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (incoming().role == 'user' && incoming().plan == 'free' && incoming().pdfExportsUsed == 0) ||
+          isAdmin()
+        );
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            (
+              // Action 1: Update profile display name or increment PDF exports counter
+              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'pdfExportsUsed', 'updatedAt']) ||
+              // Action 2: Upgrade subscription plan after verified Stripe checkout session
+              incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'updatedAt'])
+            )
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(userId) && isAdmin();
+    }
+
+    // Collection: /cvs/{cvId}
+    match /cvs/{cvId} {
+      allow get: if isSignedIn() && isValidId(cvId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(cvId) &&
+        isValidCVDocument(incoming()) &&
+        incoming().id == cvId &&
+        incoming().userId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if isSignedIn() &&
+        isValidId(cvId) &&
+        isValidCVDocument(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            existing().userId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'templateId',
+              'fullName',
+              'jobTitle',
+              'email',
+              'phone',
+              'address',
+              'linkedinUrl',
+              'portfolioUrl',
+              'photoDataUrl',
+              'rawSummary',
+              'summary',
+              'experience',
+              'education',
+              'skills',
+              'skillGroups',
+              'projects',
+              'languages',
+              'certifications',
+              'isPolished',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(cvId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // Collection: /templates/{templateId}
+    match /templates/{templateId} {
+      allow get: if isSignedIn() && isValidId(templateId);
+      allow list: if isSignedIn() && existing().id is string && existing().id.size() <= 64;
+
+      allow create: if isSignedIn() &&
+        isValidId(templateId) &&
+        isValidCVTemplate(incoming()) &&
+        incoming().id == templateId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isSignedIn() &&
+        isValidId(templateId) &&
+        isValidCVTemplate(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name',
+          'category',
+          'description',
+          'isPremium',
+          'accentColor',
+          'secondaryColor',
+          'fontFamily',
+          'layoutType',
+          'photoSlot',
+          'customCss',
+          'thumbnailType',
+          'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(templateId) && isAdmin();
+    }
+
+    // Collection: /admins/{adminId}
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isSignedIn() && existing().uid is string && isBootstrappedAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(adminId) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().uid == adminId &&
+        incoming().createdAt == request.time &&
+        isAdmin();
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(adminId) && isAdmin();
+    }
+  }
+}

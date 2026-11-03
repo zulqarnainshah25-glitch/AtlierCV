@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-serif: 'Fraunces', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: #0f172a;
+    background-color: #f8fafc;
+    word-spacing: normal;
+    letter-spacing: normal;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.dark body {
+    background-color: #020617;
+    color: #f8fafc;
+  }
+}
+
+/* Guarantee CV sheet base is White (#ffffff), dark text (#0f172a), fixed A4 width (794px / 210mm), and overflow hidden */
+.cv-paper-sheet,
+html.dark .cv-paper-sheet {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  color-scheme: light !important;
+  width: 794px !important;
+  min-width: 794px !important;
+  max-width: 794px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.cv-paper-sheet,
+.cv-paper-sheet * {
+  font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif !important;
+  word-spacing: normal !important;
+  font-kerning: normal !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "clig" 0 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* Ensure all interactive inputs & textareas inside the CV sheet strictly inherit their parent text color in both Dark and Light app themes */
+.cv-paper-sheet input.cv-interactive-field,
+.cv-paper-sheet textarea.cv-interactive-field,
+html.dark .cv-paper-sheet input.cv-interactive-field,
+html.dark .cv-paper-sheet textarea.cv-interactive-field {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  color-scheme: light !important;
+}
+
+.cv-paper-sheet input.cv-interactive-field::placeholder,
+.cv-paper-sheet textarea.cv-interactive-field::placeholder {
+  color: currentColor !important;
+  opacity: 0.45 !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* Main white content column always maintains dark readable base text */
+.cv-paper-sheet .main-content,
+html.dark .cv-paper-sheet .main-content {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Prevent section headings (like CERTIFICATIONS, LANGUAGES, SKILLS) from ever wrapping letter-by-letter */
+.cv-paper-sheet .cv-section-heading,
+.cv-paper-sheet .sidebar h2,
+.cv-paper-sheet .cv-dark-sidebar h2,
+.cv-paper-sheet .cv-dark-sidebar h3 {
+  white-space: nowrap !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+/* Sidebar and skill progress bar overflow protection */
+.cv-paper-sheet .cv-dark-sidebar,
+.cv-paper-sheet .cv-light-sidebar,
+.cv-paper-sheet .sidebar {
+  min-width: 250px !important;
+  overflow: hidden !important;
+}
+
+.cv-paper-sheet .progress-bar-container {
+  overflow: hidden !important;
+  max-width: 100% !important;
+}
+
+/* Corporate Serif Templates ("Timeline Classic" & "Executive Serif") use Georgia / Times New Roman throughout */
+.cv-paper-sheet.cv-serif-sheet,
+.cv-paper-sheet.cv-serif-sheet * {
+  font-family: Georgia, 'Times New Roman', Times, serif !important;
+}
+
+/* Dark Sidebar preserves light text on dark background; Light Sidebar preserves dark text on light background */
+.cv-paper-sheet .cv-dark-sidebar,
+html.dark .cv-paper-sheet .cv-dark-sidebar {
+  color: #f8fafc;
+}
+
+.cv-paper-sheet .cv-light-sidebar,
+html.dark .cv-paper-sheet .cv-light-sidebar {
+  color: #0f172a;
+}
+
+/* Default: strictly hide static export-only text when in interactive mode so text is never duplicated */
+:not(.cv-exporting-mode) > .cv-static-export-block,
+:not(.cv-exporting-mode) > .cv-static-export-inline,
+.cv-paper-sheet:not(.cv-exporting-mode) .cv-static-export-block,
+.cv-paper-sheet:not(.cv-exporting-mode) .cv-static-export-inline {
+  display: none !important;
+}
+
+/* When exporting to PDF: hide all edit cues and form inputs, and show pure static text */
+.cv-exporting-mode .cv-edit-cue,
+.cv-exporting-mode .cv-interactive-field {
+  display: none !important;
+}
+
+.cv-exporting-mode .cv-static-export-block {
+  display: block !important;
+  white-space: pre-wrap !important;
+  word-spacing: normal !important;
+  word-break: break-word !important;
+  overflow: visible !important;
+}
+
+.cv-exporting-mode .cv-static-export-inline {
+  display: inline !important;
+  white-space: pre-wrap !important;
+  word-spacing: normal !important;
+  word-break: break-word !important;
+  overflow: visible !important;
+}
+
+.cv-exporting-mode .cv-url-text {
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Compact & Touch-Friendly Add / Edit controls inside CV sheet */
+.cv-paper-sheet .add-btn {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 768px), (hover: none) {
+  .cv-paper-sheet:not(.cv-exporting-mode) button.cv-edit-cue {
+    opacity: 0.92 !important;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 4px !important;
+  }
+}
+
+/* Clean typography & justification for CV content blocks */
+.cv-justified-text,
+.cv-summary-text {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left !important;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  word-spacing: normal !important;
+}
+
+.cv-bullet-text {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left !important;
+  word-spacing: normal !important;
+}
+
+.cv-paper-sheet textarea.text-justify,
+.cv-paper-sheet div.text-justify,
+.cv-paper-sheet p.text-justify,
+.cv-paper-sheet span.text-justify {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left !important;
+}
+
