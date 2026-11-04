@@ -24,17 +24,32 @@ import { parseFirebaseAuthError, ParsedAuthError } from '../lib/authErrorHandler
 
 interface AuthScreenProps {
   onQuickDemoAccess: (customUser?: { email?: string; displayName?: string; isSignup?: boolean }) => void;
+  initialEmail?: string;
+  initialFullName?: string;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onQuickDemoAccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({
+  onQuickDemoAccess,
+  initialEmail = '',
+  initialFullName = ''
+}) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState(initialFullName);
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [parsedError, setParsedError] = useState<ParsedAuthError | null>(null);
   const [copiedDomain, setCopiedDomain] = useState(false);
+
+  useEffect(() => {
+    if (initialEmail && !email) {
+      setEmail(initialEmail);
+    }
+    if (initialFullName && !fullName) {
+      setFullName(initialFullName);
+    }
+  }, [initialEmail, initialFullName, email, fullName]);
 
   const currentHostname =
     typeof window !== 'undefined' ? window.location.hostname : 'atlier-cv.vercel.app';

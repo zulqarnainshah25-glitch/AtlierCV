@@ -61,6 +61,15 @@ import {
   expandRawDutiesToProfessionalBullets,
   rewriteRawSummaryToEnglish
 } from './lib/textSanitizer';
+import {
+  DEFAULT_PORTAL_URL,
+  DEFAULT_LOGOUT_REDIRECT,
+  PORTAL_URL_STORAGE_KEY,
+  LOGOUT_REDIRECT_STORAGE_KEY,
+  parseAndSavePortalQueryParams,
+  getMainPortalUrl,
+  getLogoutRedirectUrl
+} from './lib/portalIntegration';
 
 type AppTab = 'dashboard' | 'form' | 'preview' | 'admin';
 
@@ -97,6 +106,33 @@ export default function App() {
       // Ignore storage errors
     }
   }, [darkMode]);
+
+  const [ssoPrefill] = useState<{ email: string; name: string; uid: string | null }>(() => {
+    if (typeof window === 'undefined') {
+      return { email: '', name: '', uid: null };
+    }
+    const parsed = parseAndSavePortalQueryParams(window.location.search);
+    if (parsed.ssoEmail) {
+      try {
+        const existingFallback = localStorage.getItem(FALLBACK_AUTH_STORAGE_KEY);
+        if (!existingFallback) {
+          const ssoSessionData = {
+            uid: parsed.ssoUid || `sso_${parsed.ssoEmail.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+            email: parsed.ssoEmail,
+            displayName: parsed.ssoName || parsed.ssoEmail.split('@')[0] || 'User'
+          };
+          localStorage.setItem(FALLBACK_AUTH_STORAGE_KEY, JSON.stringify(ssoSessionData));
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return {
+      email: parsed.ssoEmail || '',
+      name: parsed.ssoName || '',
+      uid: parsed.ssoUid
+    };
+  });
 
   // Purge legacy v3/v4 cached sample drafts so old Areeba Khan data never leaks into new sessions
   useEffect(() => {
@@ -322,6 +358,27 @@ export default function App() {
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (!fbUser) {
+        const parsedSso =
+          typeof window !== 'undefined'
+            ? parseAndSavePortalQueryParams(window.location.search)
+            : null;
+        if (parsedSso?.ssoEmail) {
+          const ssoUser = {
+            uid:
+              parsedSso.ssoUid ||
+              `sso_${parsedSso.ssoEmail.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+            email: parsedSso.ssoEmail,
+            displayName: parsedSso.ssoName || parsedSso.ssoEmail.split('@')[0] || 'User'
+          };
+          try {
+            localStorage.setItem(FALLBACK_AUTH_STORAGE_KEY, JSON.stringify(ssoUser));
+          } catch {
+            // Ignore storage errors
+          }
+          activateFallbackUser(ssoUser);
+          return;
+        }
+
         const cachedRaw = localStorage.getItem(FALLBACK_AUTH_STORAGE_KEY);
         if (cachedRaw) {
           try {
@@ -833,19 +890,44 @@ export default function App() {
     notify('Workspace opened with a clean blank CV form.', 'success');
   };
 
+  const handleNavigateToMainPortal = () => {
+    const targetUrl =
+      (typeof window !== 'undefined' && localStorage.getItem(PORTAL_URL_STORAGE_KEY)) ||
+      DEFAULT_PORTAL_URL;
+    window.location.href = getMainPortalUrl() || targetUrl;
+  };
+
   const handleLogout = async () => {
+    const savedPortalUrl =
+      (typeof window !== 'undefined' && localStorage.getItem(PORTAL_URL_STORAGE_KEY)) ||
+      DEFAULT_PORTAL_URL;
+    const savedLogoutRedirect =
+      (typeof window !== 'undefined' && localStorage.getItem(LOGOUT_REDIRECT_STORAGE_KEY)) ||
+      DEFAULT_LOGOUT_REDIRECT;
+    const safeRedirectTarget = getLogoutRedirectUrl() || savedLogoutRedirect;
+
     try {
-      localStorage.removeItem(FALLBACK_AUTH_STORAGE_KEY);
+      localStorage.clear();
+      localStorage.setItem(PORTAL_URL_STORAGE_KEY, savedPortalUrl);
+      localStorage.setItem(LOGOUT_REDIRECT_STORAGE_KEY, safeRedirectTarget);
     } catch {
-      // Ignore
+      // Ignore storage errors
     }
-    if (!isLocalSession) {
+
+    try {
       await signOut(auth);
+    } catch {
+      // Ignore signOut errors if offline or local session
     }
+
     setUserProfile(null);
     setIsLocalSession(false);
     setCurrentCV(cleanCVDocumentText(createEmptyCV('guest')));
     setSavedCVs([]);
+
+    window.location.href =
+      (typeof window !== 'undefined' && localStorage.getItem(LOGOUT_REDIRECT_STORAGE_KEY)) ||
+      DEFAULT_LOGOUT_REDIRECT;
   };
 
   return (
@@ -929,8 +1011,23 @@ export default function App() {
           </button>
         </nav>
 
-        {/* Zone 3: Upgrade Button + Theme Toggle + Sign Out */}
+        {/* Zone 3: Main Portal Button + Upgrade Button + Theme Toggle + Sign Out */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 justify-end">
+          <a
+            href={
+              (typeof window !== 'undefined' && localStorage.getItem(PORTAL_URL_STORAGE_KEY)) ||
+              DEFAULT_PORTAL_URL
+            }
+            onClick={(e) => {
+              e.preventDefault();
+              handleNavigateToMainPortal();
+            }}
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold text-emerald-900 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 border border-emerald-300 dark:border-emerald-800 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-xs"
+            title="Return to PakEdu & Gov Portal — Sindh SELD Toolkit"
+          >
+            <span>← Main Portal</span>
+          </a>
+
           {userProfile && (
             userProfile.plan === 'free' ? (
               <button
@@ -1074,7 +1171,11 @@ export default function App() {
             />
           )
         ) : !userProfile ? (
-          <AuthScreen onQuickDemoAccess={handleQuickDemoAccess} />
+          <AuthScreen
+            onQuickDemoAccess={handleQuickDemoAccess}
+            initialEmail={ssoPrefill.email}
+            initialFullName={ssoPrefill.name}
+          />
         ) : activeTab === 'dashboard' ? (
           <DashboardView
             user={userProfile}
